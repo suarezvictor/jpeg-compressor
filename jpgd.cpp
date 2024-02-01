@@ -237,6 +237,7 @@ static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5,
 
 void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
 {
+#if 0
     JPGD_ASSERT(block_max_zag >= 1);
     JPGD_ASSERT(block_max_zag <= 64);
 
@@ -296,6 +297,24 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
         pTemp++;
         pDst_ptr++;
     }
+
+    for(int i = 0; i < 64; ++i)
+    {
+        static int c = 0;
+        if(c < 64)
+            printf("%d: pDst_ptr[i] %d, src %d\n", c++, pDst_ptr[i], pSrc_ptr[i]);
+    }
+#else
+    static uint8 s_zag[64] = { 0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63 };
+
+    u_int8_t acc = 128;
+    for(int i = 0; i < 64; ++i)
+    {
+        u_int8_t s = pSrc_ptr[s_zag[i]];
+        acc += s;
+        pDst_ptr[s_zag[i]] = acc;
+    }
+#endif
 }
 
 void idct_4x4(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr)
@@ -1491,6 +1510,7 @@ static const uint8 s_max_rc[64] = {
 
 void jpeg_decoder::transform_mcu_expand(int mcu_row)
 {
+return;
     jpgd_block_t *pSrc_ptr = m_pMCU_coefficients;
     uint8 *pDst_ptr = m_pSample_buf + mcu_row * m_expanded_blocks_per_mcu * 64;
 

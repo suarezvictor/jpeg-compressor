@@ -680,10 +680,33 @@ inline static dctq_t round_to_zero(const dct_t j, const int32 quant)
 
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
+#if 1
+    u_int8_t prev = 0;
+    for (int i = 0; i < 64; i++) {
+        u_int8_t s = pSrc[s_zag[i]];
+        pDst[i] = s - prev;
+        prev = s;
+    }
+#else
+    for(int i=0;i<64;++i)
+    {
+        static int c=0;
+        if(c < 64)
+            printf("%d: pSrc[i]+128 %d\n", c++, (int)pSrc[i]+128);
+    }
     dct(pSrc);
     for (int i = 0; i < 64; i++) {
         pDst[i] = round_to_zero(pSrc[s_zag[i]], quant[i]);
     }
+
+    for(int i=0;i<64;++i)
+    {
+      static int c=0;
+      if(c<64)
+         printf("%d: pDst[i] %d\n", c++, pDst[i]);
+    }
+#endif
+
 }
 
 void jpeg_encoder::flush_output_buffer()
