@@ -263,8 +263,8 @@ void FHT(TDST *out, const TSRC *in) {
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
 }
 
-template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
-void BINK2_IDCT(TDST *out, const TSRC *in)
+template <class TSRC, class TDST, int STRIDE>
+void BINK2_IDCT(TDST *out, const TSRC *in, float MUL=1.0)
 {
 // https://github.com/rygorous/dct_blog/blob/master/bink_idct_B2_partial.m
 
@@ -345,16 +345,14 @@ coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
 
   // output
   //out = [o0; o1; o2; o3; o4; o5; o6; o7];
-  const int k=1<<SHIFT;
-  const int r=k/2-1;
-  out[0*STRIDE] = (o0+r)/k;
-  out[1*STRIDE] = (o1+r)/k;
-  out[2*STRIDE] = (o2+r)/k;
-  out[3*STRIDE] = (o3+r)/k;
-  out[4*STRIDE] = (o4+r)/k;
-  out[5*STRIDE] = (o5+r)/k;
-  out[6*STRIDE] = (o6+r)/k;
-  out[7*STRIDE] = (o7+r)/k;
+  out[0*STRIDE] = o0*MUL+0.5;
+  out[1*STRIDE] = o1*MUL+0.5;
+  out[2*STRIDE] = o2*MUL+0.5;
+  out[3*STRIDE] = o3*MUL+0.5;
+  out[4*STRIDE] = o4*MUL+0.5;
+  out[5*STRIDE] = o5*MUL+0.5;
+  out[6*STRIDE] = o6*MUL+0.5;
+  out[7*STRIDE] = o7*MUL+0.5;
 /*
   out[0*STRIDE] = o0;
   out[1*STRIDE] = o1;
@@ -445,15 +443,15 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
 
 
 //identity + DPCM
-/*
-    u_int8_t acc = 128;
+
+    unsigned short acc = 128;
     for(int i = 0; i < 64; ++i)
     {
-        u_int8_t s = pSrc_ptr[s_zag[i]];
+        unsigned short s = pSrc_ptr[s_zag[i]];
         acc += s;
         pDst_ptr[s_zag[i]] = acc;
     }
-*/
+/*
 
     jpgd_block_t temp0[64];
     for(int i = 0; i < 64; ++i)
@@ -466,25 +464,26 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
 
     for (int i = 0; i < 8; ++i) {
         //FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
-        for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
+        //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
+        BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i]);
     }
     for (int i = 0; i < 8; ++i) {
         //FHT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
-        BINK2_IDCT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
+        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/16384.0);
     }
 
     for(int i = 0; i < 64; ++i)
     {
-        pDst_ptr[i] = temp2[i]+128;
+        pDst_ptr[i] = CLAMP(temp2[i]+128);
     }
 
     for(int i = 0; i < 64; ++i)
     {
         static int c = 0;
-        if(c < 128)
+        if(c < 64)
             printf("%d: pDst_ptr[i] %d, src %d, z %d\n", c++, pDst_ptr[i], pSrc_ptr[i], temp0[i]);
     }
-
+*/
 #endif
 }
 

@@ -707,8 +707,8 @@ void FHT(TDST *out, const TSRC *in) {
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
 }
 
-template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
-void BINK2_DCT(TDST *out, const TSRC *in)
+template <class TSRC, class TDST, int STRIDE>
+void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
 {
   // extract rows
   int i0 = in[0*STRIDE]*16;
@@ -763,15 +763,14 @@ void BINK2_DCT(TDST *out, const TSRC *in)
 
   // permute/output
   //out = [c0; d4; c2; d6; c1; d5; c3; d7];
-const int k = 1<<SHIFT;
-  out[0*STRIDE] = c0/k;
-  out[1*STRIDE] = d4/k;
-  out[2*STRIDE] = c2/k;
-  out[3*STRIDE] = d6/k;
-  out[4*STRIDE] = c1/k;
-  out[5*STRIDE] = d5/k;
-  out[6*STRIDE] = c3/k;
-  out[7*STRIDE] = d7/k;
+  out[0*STRIDE] = c0*MUL+0.5;
+  out[1*STRIDE] = d4*MUL+0.5;
+  out[2*STRIDE] = c2*MUL+0.5;
+  out[3*STRIDE] = d6*MUL+0.5;
+  out[4*STRIDE] = c1*MUL+0.5;
+  out[5*STRIDE] = d5*MUL+0.5;
+  out[6*STRIDE] = c3*MUL+0.5;
+  out[7*STRIDE] = d7*MUL+0.5;
 
   // total: 36A 12S
 }
@@ -786,15 +785,15 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
             printf("%d: pSrc[i]+128 %d\n", c++, (uint8)(pSrc[i]+128));
     }
 #if 1
-/*
+
     //identity transform withg DPCM
-    u_int8_t prev = 0;
+    unsigned short prev = 0;
     for (int i = 0; i < 64; i++) {
-        u_int8_t s = pSrc[s_zag[i]];
+        unsigned short s = pSrc[s_zag[i]];
         pDst[i] = s - prev;
         prev = s;
     }
-*/
+/*
     // walsh-hadamard transform
     
     // fht((0:7)') =   28  -16    0   -8    0    0    0   -4
@@ -803,14 +802,15 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
     int tmp[64];
     for (int i = 0; i < 8; ++i) {
       //FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
-      BINK2_DCT<dct_t, int, 1, 4>(&tmp[i * 8], &pSrc[i * 8]);
+      BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8]);
     }
 
     for (int i = 0; i < 8; ++i) {
       //FHT<int, dctq_t, 8, 3>(&pDst[i], &tmp[i]);
-      for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
+      //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
+      BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], 1.0/(2048));
     }
-
+*/
 #else
     dct(pSrc);
     for (int i = 0; i < 64; i++) {
