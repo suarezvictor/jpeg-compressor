@@ -678,15 +678,129 @@ inline static dctq_t round_to_zero(const dct_t j, const int32 quant)
     }
 }
 
+template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
+void FHT(TDST *out, const TSRC *in) {
+  // TODO(m): Investigate if we can to do this with 16-bit precision instead.
+#if 1
+  int32_t a0 = in[0*STRIDE] + in[4*STRIDE];
+  int32_t a1 = in[1*STRIDE] + in[5*STRIDE];
+  int32_t a2 = in[2*STRIDE] + in[6*STRIDE];
+  int32_t a3 = in[3*STRIDE] + in[7*STRIDE];
+  int32_t a4 = in[0*STRIDE] - in[4*STRIDE];
+  int32_t a5 = in[1*STRIDE] - in[5*STRIDE];
+  int32_t a6 = in[2*STRIDE] - in[6*STRIDE];
+  int32_t a7 = in[3*STRIDE] - in[7*STRIDE];
+  int32_t b0 = a0 + a2;
+  int32_t b1 = a1 + a3;
+  int32_t b2 = a0 - a2;
+  int32_t b3 = a1 - a3;
+  int32_t b4 = a4 + a6;
+  int32_t b5 = a5 + a7;
+  int32_t b6 = a4 - a6;
+  int32_t b7 = a5 - a7;
+  out[0*STRIDE] = int16_t((b0 + b1) >> SHIFT);
+  out[1*STRIDE] = int16_t((b4 + b5) >> SHIFT);
+  out[2*STRIDE] = int16_t((b6 + b7) >> SHIFT);
+  out[3*STRIDE] = int16_t((b2 + b3) >> SHIFT);
+  out[4*STRIDE] = int16_t((b2 - b3) >> SHIFT);
+  out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
+  out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
+  out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+#else
+  // extract rows
+  int i0 = in[0*STRIDE];
+  int i1 = in[1*STRIDE];
+  int i2 = in[2*STRIDE];
+  int i3 = in[3*STRIDE];
+  int i4 = in[0*STRIDE];
+  int i5 = in[1*STRIDE];
+  int i6 = in[2*STRIDE];
+  int i7 = in[3*STRIDE];
+
+  // stage 1 - 8A
+  int a0 = i0 + i7;
+  int a1 = i1 + i6;
+  int a2 = i2 + i5;
+  int a3 = i3 + i4;
+  int a4 = i0 - i7;
+  int a5 = i1 - i6;
+  int a6 = i2 - i5;
+  int a7 = i3 - i4;
+
+  // even stage 2 - 4A
+  int b0 = a0 + a3;
+  int b1 = a1 + a2;
+  int b2 = a0 - a3;
+  int b3 = a1 - a2;
+
+  // even stage 3 - 6A 4S
+  int c0 = b0 + b1;
+  int c1 = b0 - b1;
+  int c2 = b2 + b2/4 + b3/2;
+  int c3 = b2/2 - b3 - b3/4;
+
+  // odd stage 2 - 12A 8S
+  // NB a4/4 and a7/4 are each used twice, so this really is 8 shifts, not 10.
+  int b4 = a7/4 + a4 + a4/4 - a4/16;
+  int b7 = a4/4 - a7 - a7/4 + a7/16;
+  int b5 = a5 + a6 - a6/4 - a6/16;
+  int b6 = a6 - a5 + a5/4 + a5/16;
+
+  // odd stage 3 - 4A
+  int c4 = b4 + b5;
+  int c5 = b4 - b5;
+  int c6 = b6 + b7;
+  int c7 = b6 - b7;
+
+  // odd stage 4 - 2A
+  int d4 = c4;
+  int d5 = c5 + c7;
+  int d6 = c5 - c7;
+  int d7 = c6;
+
+  // permute/output
+  //out = [c0; d4; c2; d6; c1; d5; c3; d7];
+
+  out[0*STRIDE] = c0;
+  out[1*STRIDE] = d4;
+  out[2*STRIDE] = c2;
+  out[3*STRIDE] = d6;
+  out[4*STRIDE] = c1;
+  out[5*STRIDE] = d5;
+  out[6*STRIDE] = c3;
+  out[7*STRIDE] = d7;
+
+  // total: 36A 12S
+#endif
+}
+
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
 #if 1
+/*
+    //identity transform withg DPCM
     u_int8_t prev = 0;
     for (int i = 0; i < 64; i++) {
         u_int8_t s = pSrc[s_zag[i]];
         pDst[i] = s - prev;
         prev = s;
     }
+*/
+    // walsh-hadamard transform
+    
+    // fht((0:7)') =   28  -16    0   -8    0    0    0   -4
+    // fht((8:15)')  =  -16   0  -8   0   0   0  -4
+    // max 2040 per row, 16320 all rows
+    int tmp[64];
+    for (int i = 0; i < 8; ++i) {
+      FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+    }
+
+    for (int i = 0; i < 8; ++i) {
+      FHT<int, dctq_t, 8, 3>(&pDst[i], &tmp[i]);
+      //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
+    }
+
 #else
     for(int i=0;i<64;++i)
     {

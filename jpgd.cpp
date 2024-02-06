@@ -233,6 +233,36 @@ static const uint8 s_idct_row_table[] = {
     8,8,8,8,8,7,6,4, 8,8,8,8,8,7,6,5, 8,8,8,8,8,7,6,6, 8,8,8,8,8,7,7,6, 8,8,8,8,8,8,7,6, 8,8,8,8,8,8,8,6, 8,8,8,8,8,8,8,7, 8,8,8,8,8,8,8,8,
 };
 
+
+template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
+void FHT(TDST *out, const TSRC *in) {
+  // TODO(m): Investigate if we can to do this with 16-bit precision instead.
+  int32_t a0 = in[0*STRIDE] + in[4*STRIDE];
+  int32_t a1 = in[1*STRIDE] + in[5*STRIDE];
+  int32_t a2 = in[2*STRIDE] + in[6*STRIDE];
+  int32_t a3 = in[3*STRIDE] + in[7*STRIDE];
+  int32_t a4 = in[0*STRIDE] - in[4*STRIDE];
+  int32_t a5 = in[1*STRIDE] - in[5*STRIDE];
+  int32_t a6 = in[2*STRIDE] - in[6*STRIDE];
+  int32_t a7 = in[3*STRIDE] - in[7*STRIDE];
+  int32_t b0 = a0 + a2;
+  int32_t b1 = a1 + a3;
+  int32_t b2 = a0 - a2;
+  int32_t b3 = a1 - a3;
+  int32_t b4 = a4 + a6;
+  int32_t b5 = a5 + a7;
+  int32_t b6 = a4 - a6;
+  int32_t b7 = a5 - a7;
+  out[0*STRIDE] = int16_t((b0 + b1) >> SHIFT);
+  out[1*STRIDE] = int16_t((b4 + b5) >> SHIFT);
+  out[2*STRIDE] = int16_t((b6 + b7) >> SHIFT);
+  out[3*STRIDE] = int16_t((b2 + b3) >> SHIFT);
+  out[4*STRIDE] = int16_t((b2 - b3) >> SHIFT);
+  out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
+  out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
+  out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+}
+
 static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
 void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
@@ -307,6 +337,9 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
 #else
     static uint8 s_zag[64] = { 0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63 };
 
+
+//identity + DPCM
+/*
     u_int8_t acc = 128;
     for(int i = 0; i < 64; ++i)
     {
@@ -314,6 +347,37 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
         acc += s;
         pDst_ptr[s_zag[i]] = acc;
     }
+*/
+
+    jpgd_block_t temp0[64];
+    for(int i = 0; i < 64; ++i)
+    {
+        temp0[i] = pSrc_ptr[s_zag[i]];
+    }
+    
+    int16_t temp[64];
+    int16_t temp2[64];
+
+    for (int i = 0; i < 8; ++i) {
+        FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
+    }
+    for (int i = 0; i < 8; ++i) {
+        FHT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
+    }
+
+    for(int i = 0; i < 64; ++i)
+    {
+        pDst_ptr[i] = temp2[i]+128;
+    }
+/*
+    for(int i = 0; i < 64; ++i)
+    {
+        static int c = 0;
+        if(c < 128)
+            printf("%d: pDst_ptr[i] %d, src %d, z %d\n", c++, pDst_ptr[i], pSrc_ptr[i], temp0[i]);
+    }
+*/
 #endif
 }
 
