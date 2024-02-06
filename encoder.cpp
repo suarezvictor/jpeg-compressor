@@ -120,15 +120,37 @@ static void image_compare(image_compare_results &results, int width, int height,
     double hist[256];
     memset(hist, 0, sizeof(hist));
 
+    FILE* ppm = fopen("out.ppm", "wt");
+    if (!ppm) {
+        printf("Unable to create ppm file\n");
+        return;
+    }
+    FILE* ppm2 = fopen("out2.ppm", "wt");
+    if (!ppm) {
+        printf("Unable to create ppm file\n");
+        return;
+    }
+    
     const uint first_channel = 0, num_channels = 3;
+    fprintf(ppm, "P3\n%d %d\n%d\n", width, height, num_channels);
+    fprintf(ppm2, "P3\n%d %d\n%d\n", width, height, num_channels);
+    
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
             int a[3]; get_pixel(a, pComp_image + (y * width + x) * comp_image_comps, luma_only, comp_image_comps);
             int b[3]; get_pixel(b, pUncomp_image_data + (y * width + x) * uncomp_comps, luma_only, uncomp_comps);
             for (uint c = 0; c < num_channels; c++)
+            {
                 hist[labs(a[first_channel + c] - b[first_channel + c])]++;
+                fprintf(ppm, "%d ", a[first_channel + c]);
+                fprintf(ppm2, "%d ", b[first_channel + c]);
+            }
+           fprintf(ppm, "\n"); //needed?
+           fprintf(ppm2, "\n"); //needed?
         }
     }
+    fclose(ppm);
+    fclose(ppm2);
 
     results.max_err = 0;
     double sum = 0.0f, sum2 = 0.0f;
