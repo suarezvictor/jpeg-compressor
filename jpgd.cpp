@@ -442,15 +442,58 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
     static uint8 s_zag[64] = { 0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63 };
 
 
-//identity + DPCM
+#define BFSIZE 3
 
-    unsigned short acc = 128;
+    short acc = 0;
+#ifndef BFSIZE
+//identity + DPCM
     for(int i = 0; i < 64; ++i)
     {
-        unsigned short s = pSrc_ptr[s_zag[i]];
+        short s = pSrc_ptr[s_zag[i]];
         acc += s;
         pDst_ptr[s_zag[i]] = acc;
     }
+#else
+    int buf[BFSIZE];
+   	 memset(buf, 0, sizeof(buf));
+
+    for(int i = 0; i < 64; ++i)
+    {
+        short n = pSrc_ptr[s_zag[i]];
+        short s;
+        static int c = 0;
+        if(abs(n)<=1)
+        {
+          switch(n)
+          {
+            case 0: s = buf[0]; break;
+            case 1: s = buf[1]; break;
+            case -1: s = buf[2]; break;
+          }
+          if(c<64)
+            printf("%d(%d): LOOKUP sample[%d]=%d, acc is %d, acc will be %d\n", i, s_zag[i], n, s, acc, acc+s);
+        }
+        else
+        {
+          if(n < 0)
+            s = n+2; //-2=>0
+          if(n > 0)
+            s = n-1; //2=>1
+          
+          buf[2]=buf[1];
+          buf[1]=buf[0];
+          buf[0]=s;
+          if(c<64)
+            printf("%d(%d): code %d, ADD sample %d, acc is %d, acc will be %d\n", i, s_zag[i], n, s, acc, acc+s);
+        }
+        
+        acc /*+*/= s;
+        pDst_ptr[s_zag[i]] = acc;
+        
+        ++c;
+    }
+    
+#endif
 /*
 
     jpgd_block_t temp0[64];
@@ -476,14 +519,14 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
     {
         pDst_ptr[i] = CLAMP(temp2[i]+128);
     }
+*/
 
     for(int i = 0; i < 64; ++i)
     {
         static int c = 0;
         if(c < 64)
-            printf("%d: pDst_ptr[i] %d, src %d, z %d\n", c++, pDst_ptr[i], pSrc_ptr[i], temp0[i]);
+            printf("%d: pDst_ptr[i] %d, src %d\n", c++, pDst_ptr[i], pSrc_ptr[i]);
     }
-*/
 #endif
 }
 

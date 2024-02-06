@@ -777,22 +777,75 @@ void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
 
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
+   static int c=0;
     for(int i=0;i<64;++i)
     {
-    //pSrc[i]=i*2; //FIXME: this is for testing
-        static int c=0;
+    //pSrc[i]=i&0xFC; //FIXME: this is for testing
+    //pSrc[i]=i; //FIXME: this is for testing
         if(c < 64)
-            printf("%d: pSrc[i]+128 %d\n", c++, (uint8)(pSrc[i]+128));
+            printf("%d: pSrc[i]+128 %d\n", i, (uint8)(pSrc[i]+128));
     }
 #if 1
 
+
     //identity transform withg DPCM
-    unsigned short prev = 0;
+#define BFSIZE 3
+
+#ifndef BFSIZE
+    short prev = -128; //-128 correspond to black level
     for (int i = 0; i < 64; i++) {
-        unsigned short s = pSrc[s_zag[i]];
+        short s = pSrc[s_zag[i]];
         pDst[i] = s - prev;
         prev = s;
+
+        ++c;
     }
+#else
+    short prev = -128; //-128 correspond to black level
+    int buf[BFSIZE];
+    memset(buf, 0, sizeof(buf));
+    for (int i = 0; i < 64; i++) {
+        int findex = -1;
+        int src = pSrc[s_zag[i]];
+        dctq_t s = src-prev;
+        //prev = src;
+        
+        for(int j = 0; j < BFSIZE; ++j)
+        {
+
+          if(s == buf[j])
+          {
+            findex = j;
+            break; 
+          }
+          //if(c < 64)
+          //  printf("look for %d, buf[%d]=%d, diff %d\n", s, j, buf[j], s - buf[j]);
+        }
+
+        static int loc[BFSIZE]={0,1,-1,/*2, -2,3,-3,4, -4,5,-5,6, -6,7,-7,8*/};
+        if(findex>=0)
+        {
+          int diff = s-buf[findex];
+          pDst[i] = loc[findex]; //-2047 to 2047
+          if(c < 64)
+            printf("%d(%d): found buf[%d]=%d (src %d), diff %d, code=>%d\n", i, s_zag[i], findex, buf[findex], src, diff, pDst[i]);
+        }
+        else
+        {
+          int diff = s;
+          if(diff>=1) diff+=1; //1=>2
+          else diff+=-2; //0=>-2
+          pDst[i] = diff;
+          
+          memmove(&buf[1],&buf[0],sizeof(buf)-sizeof(buf[0]));
+          buf[0] = s;
+          if(c<64)
+            printf("%d(%d): ADD %d with code %d (src %d)\n",  i, s_zag[i], s, diff, src);
+        }
+        
+        ++c;
+    }
+#endif
 /*
     // walsh-hadamard transform
     
