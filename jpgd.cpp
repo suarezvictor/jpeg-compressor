@@ -263,6 +263,112 @@ void FHT(TDST *out, const TSRC *in) {
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
 }
 
+template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
+void BINK2_IDCT(TDST *out, const TSRC *in)
+{
+// https://github.com/rygorous/dct_blog/blob/master/bink_idct_B2_partial.m
+
+/*
+coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
+   1.0000
+   1.3581
+   1.1034
+   0.6790
+   1.0000
+   0.6790
+   1.1034
+   1.3581
+*/
+
+  float x[8];
+  x[0] = in[0*STRIDE]*1.0000;
+  x[1] = in[1*STRIDE]*1.3581;
+  x[2] = in[2*STRIDE]*1.1034;
+  x[3] = in[3*STRIDE]*0.6790;
+  x[4] = in[4*STRIDE]*1.0000;
+  x[5] = in[5*STRIDE]*0.6790;
+  x[6] = in[6*STRIDE]*1.1034;
+  x[7] = in[7*STRIDE]*1.3581;
+  
+  for(static int i=0; i < 8; ++i)
+   printf("in %d -> %f\n", in[i*STRIDE], x[i]);
+
+  // extract rows (with input permutation)
+  int c0 = x[0];
+  int d4 = x[1];
+  int c2 = x[2];
+  int d6 = x[3];
+  int c1 = x[4];
+  int d5 = x[5];
+  int c3 = x[6];
+  int d7 = x[7];
+
+  // odd stage 4
+  int c4 = d4;
+  int c5 = d5 + d6;
+  int c7 = d5 - d6;
+  int c6 = d7;
+
+    // odd stage 3
+    int b4 = c4 + c5;
+    int b5 = c4 - c5;
+    int b6 = c6 + c7;
+    int b7 = c6 - c7;
+
+    // even stage 3
+    int b0 = c0 + c1;
+    int b1 = c0 - c1;
+    int b2 = c2 + c2/4 + c3/2;
+    int b3 = c2/2 - c3 - c3/4;
+
+      // odd stage 2
+      int a4 = b7/4 + b4 + b4/4 - b4/16;
+      int a7 = b4/4 - b7 - b7/4 + b7/16;
+      int a5 = b5 - b6 + b6/4 + b6/16;
+      int a6 = b6 + b5 - b5/4 - b5/16;
+
+      // even stage 2
+      int a0 = b0 + b2;
+      int a1 = b1 + b3;
+      int a2 = b1 - b3;
+      int a3 = b0 - b2;
+
+        // stage 1
+        int o0 = a0 + a4;
+        int o1 = a1 + a5;
+        int o2 = a2 + a6;
+        int o3 = a3 + a7;
+        int o4 = a3 - a7;
+        int o5 = a2 - a6;
+        int o6 = a1 - a5;
+        int o7 = a0 - a4;
+
+  // output
+  //out = [o0; o1; o2; o3; o4; o5; o6; o7];
+  const int k=1<<SHIFT;
+  const int r=k/2-1;
+  out[0*STRIDE] = (o0+r)/k;
+  out[1*STRIDE] = (o1+r)/k;
+  out[2*STRIDE] = (o2+r)/k;
+  out[3*STRIDE] = (o3+r)/k;
+  out[4*STRIDE] = (o4+r)/k;
+  out[5*STRIDE] = (o5+r)/k;
+  out[6*STRIDE] = (o6+r)/k;
+  out[7*STRIDE] = (o7+r)/k;
+/*
+  out[0*STRIDE] = o0;
+  out[1*STRIDE] = o1;
+  out[2*STRIDE] = o2;
+  out[3*STRIDE] = o3;
+  out[4*STRIDE] = o4;
+  out[5*STRIDE] = o5;
+  out[6*STRIDE] = o6;
+  out[7*STRIDE] = o7;
+*/
+  for(static int i=0; i < 8; ++i)
+   printf("out %d\n", out[i*STRIDE]);
+}
+
 static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
 void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
@@ -359,25 +465,26 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
     int16_t temp2[64];
 
     for (int i = 0; i < 8; ++i) {
-        FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
-        //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
+        //FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
     }
     for (int i = 0; i < 8; ++i) {
-        FHT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
+        //FHT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
+        BINK2_IDCT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
     }
 
     for(int i = 0; i < 64; ++i)
     {
         pDst_ptr[i] = temp2[i]+128;
     }
-/*
+
     for(int i = 0; i < 64; ++i)
     {
         static int c = 0;
         if(c < 128)
             printf("%d: pDst_ptr[i] %d, src %d, z %d\n", c++, pDst_ptr[i], pSrc_ptr[i], temp0[i]);
     }
-*/
+
 #endif
 }
 

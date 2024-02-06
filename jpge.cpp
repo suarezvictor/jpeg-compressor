@@ -681,7 +681,6 @@ inline static dctq_t round_to_zero(const dct_t j, const int32 quant)
 template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
 void FHT(TDST *out, const TSRC *in) {
   // TODO(m): Investigate if we can to do this with 16-bit precision instead.
-#if 1
   int32_t a0 = in[0*STRIDE] + in[4*STRIDE];
   int32_t a1 = in[1*STRIDE] + in[5*STRIDE];
   int32_t a2 = in[2*STRIDE] + in[6*STRIDE];
@@ -706,16 +705,20 @@ void FHT(TDST *out, const TSRC *in) {
   out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
   out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
-#else
+}
+
+template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
+void BINK2_DCT(TDST *out, const TSRC *in)
+{
   // extract rows
-  int i0 = in[0*STRIDE];
-  int i1 = in[1*STRIDE];
-  int i2 = in[2*STRIDE];
-  int i3 = in[3*STRIDE];
-  int i4 = in[0*STRIDE];
-  int i5 = in[1*STRIDE];
-  int i6 = in[2*STRIDE];
-  int i7 = in[3*STRIDE];
+  int i0 = in[0*STRIDE]*16;
+  int i1 = in[1*STRIDE]*16;
+  int i2 = in[2*STRIDE]*16;
+  int i3 = in[3*STRIDE]*16;
+  int i4 = in[4*STRIDE]*16;
+  int i5 = in[5*STRIDE]*16;
+  int i6 = in[6*STRIDE]*16;
+  int i7 = in[7*STRIDE]*16;
 
   // stage 1 - 8A
   int a0 = i0 + i7;
@@ -760,22 +763,28 @@ void FHT(TDST *out, const TSRC *in) {
 
   // permute/output
   //out = [c0; d4; c2; d6; c1; d5; c3; d7];
-
-  out[0*STRIDE] = c0;
-  out[1*STRIDE] = d4;
-  out[2*STRIDE] = c2;
-  out[3*STRIDE] = d6;
-  out[4*STRIDE] = c1;
-  out[5*STRIDE] = d5;
-  out[6*STRIDE] = c3;
-  out[7*STRIDE] = d7;
+const int k = 1<<SHIFT;
+  out[0*STRIDE] = c0/k;
+  out[1*STRIDE] = d4/k;
+  out[2*STRIDE] = c2/k;
+  out[3*STRIDE] = d6/k;
+  out[4*STRIDE] = c1/k;
+  out[5*STRIDE] = d5/k;
+  out[6*STRIDE] = c3/k;
+  out[7*STRIDE] = d7/k;
 
   // total: 36A 12S
-#endif
 }
 
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
+    for(int i=0;i<64;++i)
+    {
+    //pSrc[i]=i*2; //FIXME: this is for testing
+        static int c=0;
+        if(c < 64)
+            printf("%d: pSrc[i]+128 %d\n", c++, (uint8)(pSrc[i]+128));
+    }
 #if 1
 /*
     //identity transform withg DPCM
@@ -793,33 +802,28 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
     // max 2040 per row, 16320 all rows
     int tmp[64];
     for (int i = 0; i < 8; ++i) {
-      FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+      //FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+      BINK2_DCT<dct_t, int, 1, 4>(&tmp[i * 8], &pSrc[i * 8]);
     }
 
     for (int i = 0; i < 8; ++i) {
-      FHT<int, dctq_t, 8, 3>(&pDst[i], &tmp[i]);
-      //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
+      //FHT<int, dctq_t, 8, 3>(&pDst[i], &tmp[i]);
+      for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
     }
 
 #else
-    for(int i=0;i<64;++i)
-    {
-        static int c=0;
-        if(c < 64)
-            printf("%d: pSrc[i]+128 %d\n", c++, (int)pSrc[i]+128);
-    }
     dct(pSrc);
     for (int i = 0; i < 64; i++) {
         pDst[i] = round_to_zero(pSrc[s_zag[i]], quant[i]);
     }
 
+#endif
     for(int i=0;i<64;++i)
     {
       static int c=0;
       if(c<64)
          printf("%d: pDst[i] %d\n", c++, pDst[i]);
     }
-#endif
 
 }
 
