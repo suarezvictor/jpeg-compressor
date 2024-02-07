@@ -374,23 +374,22 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
     JPGD_ASSERT(block_max_zag >= 1);
     JPGD_ASSERT(block_max_zag <= 64);
 
-    if (block_max_zag <= 1) {
-        int k = ((pSrc_ptr[0] + 4) >> 3) + 128;
-        k = CLAMP(k);
-        k = k | (k<<8);
-        k = k | (k<<16);
-
-        for (int i = 8; i > 0; i--) {
-            *(int *)&pDst_ptr[0] = k;
-            *(int *)&pDst_ptr[4] = k;
-            pDst_ptr += 8;
-        }
-        return;
-    }
-
-   
     if(!lossless)
     {
+		if (block_max_zag <= 1) {
+		    int k = ((pSrc_ptr[0] + 4) >> 3) + 128;
+		    k = CLAMP(k);
+		    k = k | (k<<8);
+		    k = k | (k<<16);
+
+		    for (int i = 8; i > 0; i--) {
+		        *(int *)&pDst_ptr[0] = k;
+		        *(int *)&pDst_ptr[4] = k;
+		        pDst_ptr += 8;
+		    }
+		    return;
+		}
+
 		int temp[64];
 
 		const jpgd_block_t *pSrc = pSrc_ptr;
