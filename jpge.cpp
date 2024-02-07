@@ -775,6 +775,34 @@ void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
   // total: 36A 12S
 }
 
+
+//LOCO-I predictor (median predictor)
+//a=left, b=top, c=top-left
+int loco1_prediction(int a, int b, int c)
+{
+/*
+    //https://github.com/hpcn-uam/LOCO-ANS GPL-3
+	int dx, dy, dxy, s;
+	dy = a - c;
+	dx = c -b;
+	dxy = a -b;
+	s = (dy ^ dx)<0? -1 : 0 ;
+	dxy &= (dy ^ dxy)<0? -1 : 0 ;
+	return  !s ? b + dy: a - dxy;
+*/
+    if(c >= JPGE_MAX(a,b)) return JPGE_MIN(a, b);	
+    if(c <= JPGE_MIN(a,b)) return JPGE_MAX(a, b);	
+    return a+b-c;
+}
+
+dct_t getpixel_8x8(int x, int y, dct_t *p)
+{
+  if(x < 0 || y < 0)
+    return 0;
+  int i = y*8+x;
+  return p[i];
+}
+
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
    static int c=0;
@@ -807,10 +835,21 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 #ifndef BFSIZE
     //identity transform withg DPCM
     short prev = 0; //-128 correspond to black level
-    for (int i = 0; i < 64; i++) {
+    for (int i = 0; i < 64; i++)
+    {
+#if 1
+        int x = i % 8;
+        int y = i / 8;
+        dct_t pa = getpixel_8x8(x-1, y, pSrc);
+        dct_t pb = getpixel_8x8(x, y-1, pSrc);
+        dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
+        short s = getpixel_8x8(x, y, pSrc);
+        pDst[i] = s - loco1_prediction(pa, pb, pc);
+#else
         short s = pSrc[i];
         pDst[i] = s - prev; //destination shpuld be read in zag order
         prev = s;
+#endif
 
         ++c;
     }

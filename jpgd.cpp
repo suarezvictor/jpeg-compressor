@@ -369,6 +369,34 @@ coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
 
 static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
+
+//LOCO-I predictor (median predictor)
+//a=left, b=top, c=top-left
+int loco1_prediction(int a, int b, int c){
+
+    //https://github.com/hpcn-uam/LOCO-ANS GPL-3
+	int dx, dy, dxy, s;
+	dy = a - c;
+	dx = c -b;
+	dxy = a -b;
+	s = (dy ^ dx)<0? -1 : 0 ;
+	dxy &= (dy ^ dxy)<0? -1 : 0 ;
+	return  !s ? b + dy: a - dxy;
+/*
+    if(c >= JPGE_MAX(a,b)) return JPGE_MIN(a, b);	
+    if(c <= JPGE_MIN(a,b)) return JPGE_MAX(a, b);	
+    return a+b-c;
+*/
+}
+
+uint8 getpixel_8x8(int x, int y, uint8 *p)
+{
+  if(x < 0 || y < 0)
+    return 0;
+  int i = y*8+x;
+  return p[i];
+}
+
 void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool lossless)
 {
     JPGD_ASSERT(block_max_zag >= 1);
@@ -443,13 +471,22 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
 //#define BFSIZE 3
 #ifndef BFSIZE
 //identity + DPCM
-    short acc = 0;
-    pDst_ptr[0] = acc = pSrc_ptr[0]/8+128; //scale DC
+    short pred = 0;
+    pDst_ptr[0] = pred = pSrc_ptr[0]/8+128; //scale DC
     for(int i = 1; i < 64; ++i)
     {
         short s = pSrc_ptr[s_zag[i]];
-        acc += s;
-        pDst_ptr[i] = acc;
+#if 1
+        int x = i % 8;
+        int y = i / 8;
+        uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
+        uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
+        uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
+        pred = loco1_prediction(pa, pb, pc);
+#endif
+        pred += s;
+        pDst_ptr[i] = pred;
+
     }
 #else
     short acc = 0;
