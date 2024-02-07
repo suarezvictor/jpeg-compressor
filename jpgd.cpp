@@ -264,7 +264,7 @@ void FHT(TDST *out, const TSRC *in) {
 }
 
 template <class TSRC, class TDST, int STRIDE>
-void BINK2_IDCT(TDST *out, const TSRC *in, float MUL=1.0)
+void BINK2_IDCT(TDST *out, const TSRC *in, float MUL, bool correct_input)
 {
 // https://github.com/rygorous/dct_blog/blob/master/bink_idct_B2_partial.m
 
@@ -281,14 +281,29 @@ coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
 */
 
   float x[8];
-  x[0] = in[0*STRIDE]*1.0000;
-  x[1] = in[1*STRIDE]*1.3581;
-  x[2] = in[2*STRIDE]*1.1034;
-  x[3] = in[3*STRIDE]*0.6790;
-  x[4] = in[4*STRIDE]*1.0000;
-  x[5] = in[5*STRIDE]*0.6790;
-  x[6] = in[6*STRIDE]*1.1034;
-  x[7] = in[7*STRIDE]*1.3581;
+  if(correct_input)
+  {
+   //coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
+    x[0] = in[0*STRIDE]*1.0000+0.5;
+    x[1] = in[1*STRIDE]*1.3581+0.5;
+    x[2] = in[2*STRIDE]*1.1034+0.5;
+    x[3] = in[3*STRIDE]*0.6790+0.5;
+    x[4] = in[4*STRIDE]*1.0000+0.5;
+    x[5] = in[5*STRIDE]*0.6790+0.5;
+    x[6] = in[6*STRIDE]*1.1034+0.5;
+    x[7] = in[7*STRIDE]*1.3581+0.5;
+  }
+  else
+  {
+    x[0] = in[0*STRIDE];
+    x[1] = in[1*STRIDE];
+    x[2] = in[2*STRIDE];
+    x[3] = in[3*STRIDE];
+    x[4] = in[4*STRIDE];
+    x[5] = in[5*STRIDE];
+    x[6] = in[6*STRIDE];
+    x[7] = in[7*STRIDE];
+  }
   
   for(static int i=0; i < 8; ++i)
    printf("in %d -> %f\n", in[i*STRIDE], x[i]);
@@ -345,26 +360,14 @@ coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
 
   // output
   //out = [o0; o1; o2; o3; o4; o5; o6; o7];
-  out[0*STRIDE] = o0*MUL+0.5;
-  out[1*STRIDE] = o1*MUL+0.5;
-  out[2*STRIDE] = o2*MUL+0.5;
-  out[3*STRIDE] = o3*MUL+0.5;
-  out[4*STRIDE] = o4*MUL+0.5;
-  out[5*STRIDE] = o5*MUL+0.5;
-  out[6*STRIDE] = o6*MUL+0.5;
-  out[7*STRIDE] = o7*MUL+0.5;
-/*
-  out[0*STRIDE] = o0;
-  out[1*STRIDE] = o1;
-  out[2*STRIDE] = o2;
-  out[3*STRIDE] = o3;
-  out[4*STRIDE] = o4;
-  out[5*STRIDE] = o5;
-  out[6*STRIDE] = o6;
-  out[7*STRIDE] = o7;
-*/
-  for(static int i=0; i < 8; ++i)
-   printf("out %d\n", out[i*STRIDE]);
+  out[0*STRIDE] = o0*MUL;
+  out[1*STRIDE] = o1*MUL;
+  out[2*STRIDE] = o2*MUL;
+  out[3*STRIDE] = o3*MUL;
+  out[4*STRIDE] = o4*MUL;
+  out[5*STRIDE] = o5*MUL;
+  out[6*STRIDE] = o6*MUL;
+  out[7*STRIDE] = o7*MUL;
 }
 
 static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
@@ -468,91 +471,56 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
 
 
 
-//#define BFSIZE 3
-#ifndef BFSIZE
-//identity + DPCM
     short pred = 0;
     int algorithm_type = pSrc_ptr[0] & 7;
     
-    pDst_ptr[0] = pred = unsigned(pSrc_ptr[0])/8+128; //scale DC
-    for(int i = 1; i < 64; ++i)
+    if(algorithm_type < 2) //FIXME: use enum
     {
+      //identity + DPCM or LOCO-I
+      pDst_ptr[0] = pred = unsigned(pSrc_ptr[0])/8+128; //scale DC
+      for(int i = 1; i < 64; ++i)
+      {
         short s = pSrc_ptr[s_zag[i]];
         if(algorithm_type == 1)
         {
-	        int x = i % 8;
-    	    int y = i / 8;
-	        uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
-    	    uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
-	        uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
-	        pred = loco1_prediction(pa, pb, pc);
-	    }
+  	      int x = i % 8;
+  	      int y = i / 8;
+  	      uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
+  	      uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
+  	      uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
+  	      pred = loco1_prediction(pa, pb, pc);
+        }
 
         pred += s;
         pDst_ptr[i] = pred;
-
+      }
+      return;
     }
-#else
-    short acc = 0;
-    int buf[BFSIZE];
-   	 memset(buf, 0, sizeof(buf));
-
-    for(int i = 0; i < 64; ++i)
-    {
-        short n = pSrc_ptr[s_zag[i]];
-        short s;
-        static int c = 0;
-        if(abs(n)<=1)
-        {
-          switch(n)
-          {
-            case 0: s = buf[0]; break;
-            case 1: s = buf[1]; break;
-            case -1: s = buf[2]; break;
-          }
-          if(c<64)
-            printf("%d(%d): LOOKUP sample[%d]=%d, acc is %d, acc will be %d\n", i, s_zag[i], n, s, acc, acc+s);
-        }
-        else
-        {
-          if(n < 0)
-            s = n+2; //-2=>0
-          if(n > 0)
-            s = n-1; //2=>1
-          
-          buf[2]=buf[1];
-          buf[1]=buf[0];
-          buf[0]=s;
-          if(c<64)
-            printf("%d(%d): code %d, ADD sample %d, acc is %d, acc will be %d\n", i, s_zag[i], n, s, acc, acc+s);
-        }
-        
-        pDst_ptr[i] = s; //acc+=s
-        
-        ++c;
-    }
-    
-#endif
 
 
-/*
+    //printf("algorithm %d\n", algorithm_type);
+    //algorithm 2
     jpgd_block_t temp0[64];
     for(int i = 0; i < 64; ++i)
     {
-        temp0[i] = pSrc_ptr[s_zag[i]];
+        temp0[i] = pSrc_ptr[i];
     }
     
     int16_t temp[64];
     int16_t temp2[64];
 
+    bool idct_correct_coefs=false;
+
+#define AC_GAIN_BITS 1
+    temp0[0]<<=AC_GAIN_BITS;
     for (int i = 0; i < 8; ++i) {
-        FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        //FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
         //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
-        //BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i]);
+        BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, idct_correct_coefs);
     }
     for (int i = 0; i < 8; ++i) {
-        FHT<int16_t, int16_t, 1, 4>(&temp2[i*8], &temp[i*8]);
-        //BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/16384.0);
+        //FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
+        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), idct_correct_coefs);
     }
 
     for(int i = 0; i < 64; ++i)
@@ -567,7 +535,6 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
         if(c < 64)
             printf("%d: pDst_ptr[i] %d, src %d\n", c++, pDst_ptr[i], pSrc_ptr[i]);
     }
-*/
 
 }
 

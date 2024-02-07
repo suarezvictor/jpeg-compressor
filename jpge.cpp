@@ -708,7 +708,7 @@ void FHT(TDST *out, const TSRC *in) {
 }
 
 template <class TSRC, class TDST, int STRIDE>
-void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
+void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0, bool correct_output=true)
 {
   // extract rows
   int i0 = in[0*STRIDE]*16;
@@ -763,14 +763,29 @@ void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
 
   // permute/output
   //out = [c0; d4; c2; d6; c1; d5; c3; d7];
-  out[0*STRIDE] = c0*MUL+0.5;
-  out[1*STRIDE] = d4*MUL+0.5;
-  out[2*STRIDE] = c2*MUL+0.5;
-  out[3*STRIDE] = d6*MUL+0.5;
-  out[4*STRIDE] = c1*MUL+0.5;
-  out[5*STRIDE] = d5*MUL+0.5;
-  out[6*STRIDE] = c3*MUL+0.5;
-  out[7*STRIDE] = d7*MUL+0.5;
+  
+  if(correct_output)
+  {
+    out[0*STRIDE] = c0*MUL*1.0000+0.5;
+    out[1*STRIDE] = d4*MUL*1.3581+0.5;
+    out[2*STRIDE] = c2*MUL*1.1034+0.5;
+    out[3*STRIDE] = d6*MUL*0.6790+0.5;
+    out[4*STRIDE] = c1*MUL*1.0000+0.5;
+    out[5*STRIDE] = d5*MUL*0.6790+0.5;
+    out[6*STRIDE] = c3*MUL*1.1034+0.5;
+    out[7*STRIDE] = d7*MUL*1.3581+0.5;
+  }
+  else
+  {
+    out[0*STRIDE] = c0*MUL;
+    out[1*STRIDE] = d4*MUL;
+    out[2*STRIDE] = c2*MUL;
+    out[3*STRIDE] = d6*MUL;
+    out[4*STRIDE] = c1*MUL;
+    out[5*STRIDE] = d5*MUL;
+    out[6*STRIDE] = c3*MUL;
+    out[7*STRIDE] = d7*MUL;
+  }
 
   // total: 36A 12S
 }
@@ -803,6 +818,180 @@ dct_t getpixel_8x8(int x, int y, dct_t *p)
   return p[i];
 }
 
+
+
+template <class TSRC, class TDST, int STRIDE>
+void BINK2_IDCT(TDST *out, const TSRC *in, float MUL=1.0, bool correct_input=false)
+{
+// https://github.com/rygorous/dct_blog/blob/master/bink_idct_B2_partial.m
+
+
+  float x[8];
+  if(correct_input)
+  {
+   //coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
+    x[0] = in[0*STRIDE]*1.0000+0.5;
+    x[1] = in[1*STRIDE]*1.3581+0.5;
+    x[2] = in[2*STRIDE]*1.1034+0.5;
+    x[3] = in[3*STRIDE]*0.6790+0.5;
+    x[4] = in[4*STRIDE]*1.0000+0.5;
+    x[5] = in[5*STRIDE]*0.6790+0.5;
+    x[6] = in[6*STRIDE]*1.1034+0.5;
+    x[7] = in[7*STRIDE]*1.3581+0.5;
+  }
+  else
+  {
+    x[0] = in[0*STRIDE];
+    x[1] = in[1*STRIDE];
+    x[2] = in[2*STRIDE];
+    x[3] = in[3*STRIDE];
+    x[4] = in[4*STRIDE];
+    x[5] = in[5*STRIDE];
+    x[6] = in[6*STRIDE];
+    x[7] = in[7*STRIDE];
+  }
+  
+  for(static int i=0; i < 8; ++i)
+   printf("in %d -> %f\n", in[i*STRIDE], x[i]);
+
+  // extract rows (with input permutation)
+  int c0 = x[0];
+  int d4 = x[1];
+  int c2 = x[2];
+  int d6 = x[3];
+  int c1 = x[4];
+  int d5 = x[5];
+  int c3 = x[6];
+  int d7 = x[7];
+
+  // odd stage 4
+  int c4 = d4;
+  int c5 = d5 + d6;
+  int c7 = d5 - d6;
+  int c6 = d7;
+
+    // odd stage 3
+    int b4 = c4 + c5;
+    int b5 = c4 - c5;
+    int b6 = c6 + c7;
+    int b7 = c6 - c7;
+
+    // even stage 3
+    int b0 = c0 + c1;
+    int b1 = c0 - c1;
+    int b2 = c2 + c2/4 + c3/2;
+    int b3 = c2/2 - c3 - c3/4;
+
+      // odd stage 2
+      int a4 = b7/4 + b4 + b4/4 - b4/16;
+      int a7 = b4/4 - b7 - b7/4 + b7/16;
+      int a5 = b5 - b6 + b6/4 + b6/16;
+      int a6 = b6 + b5 - b5/4 - b5/16;
+
+      // even stage 2
+      int a0 = b0 + b2;
+      int a1 = b1 + b3;
+      int a2 = b1 - b3;
+      int a3 = b0 - b2;
+
+        // stage 1
+        int o0 = a0 + a4;
+        int o1 = a1 + a5;
+        int o2 = a2 + a6;
+        int o3 = a3 + a7;
+        int o4 = a3 - a7;
+        int o5 = a2 - a6;
+        int o6 = a1 - a5;
+        int o7 = a0 - a4;
+
+  // output
+  //out = [o0; o1; o2; o3; o4; o5; o6; o7];
+  out[0*STRIDE] = o0*MUL+0.5;
+  out[1*STRIDE] = o1*MUL+0.5;
+  out[2*STRIDE] = o2*MUL+0.5;
+  out[3*STRIDE] = o3*MUL+0.5;
+  out[4*STRIDE] = o4*MUL+0.5;
+  out[5*STRIDE] = o5*MUL+0.5;
+  out[6*STRIDE] = o6*MUL+0.5;
+  out[7*STRIDE] = o7*MUL+0.5;
+}
+
+bool forward_inverse_test(const dct_t *pSrc, dctq_t *pDst)
+{
+#define AC_GAIN_BITS 1 //use more precision in AC coeeficients
+
+    // walsh-hadamard or other DCT transforms
+    
+    bool dct_correct_coefs=true;
+
+    for (int i = 0; i < 64; i++)
+    {
+      //printf("%d ", (int)pSrc[i]);
+    }
+    //printf("<-pSrc\n");
+    
+    int tmp[64];
+    for (int i = 0; i < 8; ++i) {
+      //FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+      BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8], 1.0, dct_correct_coefs);
+    }
+
+    for (int i = 0; i < 8; ++i) {
+      //FHT<int, dctq_t, 8, 3-AC_GAIN_BITS>(&pDst[i], &tmp[i]);
+      //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
+      BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], (1<<AC_GAIN_BITS)/(2048.0), dct_correct_coefs);
+    }
+    pDst[0]/=(1<<AC_GAIN_BITS);
+    
+    //zag coefficients
+    for(int i = 0; i < 64; ++i)
+    {
+      tmp[i]=pDst[s_zag[i]];
+    }
+    for(int i = 0; i < 64; ++i)
+    {
+      pDst[i] = tmp[i];
+    }
+
+    for (int i = 0; i < 64; i++)
+    {
+      //printf("%d ", pDst[i]);
+      if(pDst[i] > 2047) pDst[i]=2047;
+      if(pDst[i] < -2047) pDst[i]=-2047;
+    }
+    //printf("<-pDst\n");
+
+    short temp0[64];
+    for(int i = 0; i < 64; ++i)
+    {
+        temp0[i] = pDst[i];
+    }
+    
+    short temp[64];
+    short temp2[64];
+
+    temp0[0] <<= AC_GAIN_BITS;
+    for (int i = 0; i < 8; ++i) {
+        //FHT<int16_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
+        BINK2_IDCT<int16_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, !dct_correct_coefs);
+    }
+    for (int i = 0; i < 8; ++i) {
+        //FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
+        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), !dct_correct_coefs);
+    }
+
+    bool match = true;
+    for (int i = 0; i < 64; i++)
+    {
+      //printf("%d ", temp2[i]);
+      if(temp2[i] != pSrc[i])
+        match = false;
+    }
+    //if(match) {printf("<-(reconsrcted MATCHES)\n"); exit(1); }
+    return match;
+}
+
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
    static int c=0;
@@ -830,96 +1019,38 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
       return;
     }
 
-   
-//#define BFSIZE 3
-#ifndef BFSIZE
-    //identity transform withg DPCM
-    short pred = 0; //-128 correspond to black level
-    int algorithm_type = 1;
-    for (int i = 0; i < 64; i++)
+    int algorithm_type = 1; //FIXME: use enum
+
+    bool match=forward_inverse_test(pSrc, pDst);
+    static int mcount=0;
+    if(algorithm_type==2/* && match*/) //match
     {
-        short s = pSrc[i];
-        if(algorithm_type == 1)
-        {
-		    int x = i % 8;
-		    int y = i / 8;
-		    dct_t pa = getpixel_8x8(x-1, y, pSrc);
-		    dct_t pb = getpixel_8x8(x, y-1, pSrc);
-		    dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
-		    pred = loco1_prediction(pa, pb, pc);
+      //FHT or DCT algorithm
+    }
+    else
+    {
+        algorithm_type = 1; //fallback
+		short pred = 0; //-128 correspond to black level
+		for (int i = 0; i < 64; i++)
+		{
+		    short s = pSrc[i];
+		    if(algorithm_type == 1)
+		    {
+				int x = i % 8;
+				int y = i / 8;
+				dct_t pa = getpixel_8x8(x-1, y, pSrc);
+				dct_t pb = getpixel_8x8(x, y-1, pSrc);
+				dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
+				pred = loco1_prediction(pa, pb, pc);
+			}
+		    pDst[i] = s - pred; //destination shpuld be read in zag order
+		    pred = s;
+
+		    ++c;
 		}
-        pDst[i] = s - pred; //destination shpuld be read in zag order
-        pred = s;
-
-        ++c;
-    }
-    pDst[0] = pDst[0]*8 + algorithm_type; //scale DC
-#else
-    short prev = -128; //-128 correspond to black level
-    int buf[BFSIZE];
-    memset(buf, 0, sizeof(buf));
-    for (int i = 0; i < 64; i++) {
-        int findex = -1;
-        int src = pSrc[i];
-        dctq_t s = src-prev;
-        //prev = src;
-        
-        for(int j = 0; j < BFSIZE; ++j)
-        {
-
-          if(s == buf[j])
-          {
-            findex = j;
-            break; 
-          }
-          //if(c < 64)
-          //  printf("look for %d, buf[%d]=%d, diff %d\n", s, j, buf[j], s - buf[j]);
-        }
-
-        static int loc[BFSIZE]={0,1,-1};
-        if(findex>=0)
-        {
-          int diff = s-buf[findex];
-          pDst[i] = loc[findex]; //-2047 to 2047
-          if(c < 64)
-            printf("%d(%d): found buf[%d]=%d (src %d), diff %d, code=>%d\n", i, s_zag[i], findex, buf[findex], src, diff, pDst[i]);
-        }
-        else
-        {
-          int diff = s;
-          if(diff>=1) diff+=1; //1=>2
-          else diff+=-2; //0=>-2
-          pDst[i] = diff;
-          
-          memmove(&buf[1],&buf[0],sizeof(buf)-sizeof(buf[0]));
-          buf[0] = s;
-          if(c<64)
-            printf("%d(%d): ADD %d with code %d (src %d)\n",  i, s_zag[i], s, diff, src);
-        }
-        
-        ++c;
-    }
-#endif
-
-/*
-    // walsh-hadamard transform
-    
-    // fht((0:7)') =   28  -16    0   -8    0    0    0   -4
-    // fht((8:15)')  =  -16   0  -8   0   0   0  -4
-    // max 2040 per row, 16320 all rows
-    int tmp[64];
-    for (int i = 0; i < 8; ++i) {
-      FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
-      //BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8]);
+		pDst[0] = pDst[0]*8; //scale DC
     }
 
-    for (int i = 0; i < 8; ++i) {
-      FHT<int, dctq_t, 8, 2>(&pDst[i], &tmp[i]);
-      //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
-      //BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], 1.0/(2048));
-    }
-
-*/
 
     for(int i=0;i<64;++i)
     {
@@ -931,7 +1062,9 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
       if(pDst[i] > 2047) pDst[i]=2047;
       if(pDst[i] < -2047) pDst[i]=-2047;
     }
-}
+
+    pDst[0] = (pDst[0] & ~7) | algorithm_type; 
+ }
 
 void jpeg_encoder::flush_output_buffer()
 {
