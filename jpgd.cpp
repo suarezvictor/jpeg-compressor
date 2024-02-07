@@ -472,18 +472,22 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
 #ifndef BFSIZE
 //identity + DPCM
     short pred = 0;
-    pDst_ptr[0] = pred = pSrc_ptr[0]/8+128; //scale DC
+    int algorithm_type = pSrc_ptr[0] & 7;
+    
+    pDst_ptr[0] = pred = unsigned(pSrc_ptr[0])/8+128; //scale DC
     for(int i = 1; i < 64; ++i)
     {
         short s = pSrc_ptr[s_zag[i]];
-#if 1
-        int x = i % 8;
-        int y = i / 8;
-        uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
-        uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
-        uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
-        pred = loco1_prediction(pa, pb, pc);
-#endif
+        if(algorithm_type == 1)
+        {
+	        int x = i % 8;
+    	    int y = i / 8;
+	        uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
+    	    uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
+	        uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
+	        pred = loco1_prediction(pa, pb, pc);
+	    }
+
         pred += s;
         pDst_ptr[i] = pred;
 

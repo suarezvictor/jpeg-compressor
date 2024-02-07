@@ -834,26 +834,26 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 //#define BFSIZE 3
 #ifndef BFSIZE
     //identity transform withg DPCM
-    short prev = 0; //-128 correspond to black level
+    short pred = 0; //-128 correspond to black level
+    int algorithm_type = 1;
     for (int i = 0; i < 64; i++)
     {
-#if 1
-        int x = i % 8;
-        int y = i / 8;
-        dct_t pa = getpixel_8x8(x-1, y, pSrc);
-        dct_t pb = getpixel_8x8(x, y-1, pSrc);
-        dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
-        short s = getpixel_8x8(x, y, pSrc);
-        pDst[i] = s - loco1_prediction(pa, pb, pc);
-#else
         short s = pSrc[i];
-        pDst[i] = s - prev; //destination shpuld be read in zag order
-        prev = s;
-#endif
+        if(algorithm_type == 1)
+        {
+		    int x = i % 8;
+		    int y = i / 8;
+		    dct_t pa = getpixel_8x8(x-1, y, pSrc);
+		    dct_t pb = getpixel_8x8(x, y-1, pSrc);
+		    dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
+		    pred = loco1_prediction(pa, pb, pc);
+		}
+        pDst[i] = s - pred; //destination shpuld be read in zag order
+        pred = s;
 
         ++c;
     }
-    pDst[0] = pDst[0]*8; //scale DC
+    pDst[0] = pDst[0]*8 + algorithm_type; //scale DC
 #else
     short prev = -128; //-128 correspond to black level
     int buf[BFSIZE];
