@@ -806,7 +806,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 //#define BFSIZE 3
 #ifndef BFSIZE
     //identity transform withg DPCM
-    short prev = -128; //-128 correspond to black level
+    short prev = 0; //-128 correspond to black level
     for (int i = 0; i < 64; i++) {
         short s = pSrc[i];
         pDst[i] = s - prev; //destination shpuld be read in zag order
@@ -814,6 +814,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 
         ++c;
     }
+    pDst[0] = pDst[0]*8; //scale DC
 #else
     short prev = -128; //-128 correspond to black level
     int buf[BFSIZE];
@@ -879,18 +880,18 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
       //BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], 1.0/(2048));
     }
 
+*/
+
     for(int i=0;i<64;++i)
     {
-      //clamp values
-      if(pDst[i] > 2047) pDst[i]=2047;
-      if(pDst[i] < -2047) pDst[i]=-2047;
-      
       static int c=0;
       if(c<64)
          printf("%d: pDst[i] %d\n", c++, pDst[i]);
-    }
-*/
 
+      //clamp values
+      if(pDst[i] > 2047) pDst[i]=2047;
+      if(pDst[i] < -2047) pDst[i]=-2047;
+    }
 }
 
 void jpeg_encoder::flush_output_buffer()

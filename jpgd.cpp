@@ -439,18 +439,20 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
 
 
 
-    short acc = 0;
 
 //#define BFSIZE 3
 #ifndef BFSIZE
 //identity + DPCM
-    for(int i = 0; i < 64; ++i)
+    short acc = 0;
+    pDst_ptr[0] = acc = pSrc_ptr[0]/8+128; //scale DC
+    for(int i = 1; i < 64; ++i)
     {
         short s = pSrc_ptr[s_zag[i]];
         acc += s;
         pDst_ptr[i] = acc;
     }
 #else
+    short acc = 0;
     int buf[BFSIZE];
    	 memset(buf, 0, sizeof(buf));
 
