@@ -369,9 +369,8 @@ coefficients for input: bink_dct_B2(eye(8)); k==8 ./ diag(M*M')
 
 static const uint8 s_idct_col_table[] = { 1, 1, 2, 3, 3, 3, 3, 3, 3, 4, 5, 5, 5, 5, 5, 5, 5, 5, 5, 5, 6, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 7, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8, 8 };
 
-void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
+void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool lossless)
 {
-#if 0
     JPGD_ASSERT(block_max_zag >= 1);
     JPGD_ASSERT(block_max_zag <= 64);
 
@@ -389,69 +388,68 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
         return;
     }
 
-    int temp[64];
-
-    const jpgd_block_t *pSrc = pSrc_ptr;
-    int *pTemp = temp;
-
-    const uint8 *pRow_tab = &s_idct_row_table[(block_max_zag - 1) * 8];
-    int i;
-    for (i = 8; i > 0; i--, pRow_tab++) {
-        switch (*pRow_tab) {
-        case 0: Row<0>::idct(pTemp, pSrc); break;
-        case 1: Row<1>::idct(pTemp, pSrc); break;
-        case 2: Row<2>::idct(pTemp, pSrc); break;
-        case 3: Row<3>::idct(pTemp, pSrc); break;
-        case 4: Row<4>::idct(pTemp, pSrc); break;
-        case 5: Row<5>::idct(pTemp, pSrc); break;
-        case 6: Row<6>::idct(pTemp, pSrc); break;
-        case 7: Row<7>::idct(pTemp, pSrc); break;
-        case 8: Row<8>::idct(pTemp, pSrc); break;
-        }
-
-        pSrc += 8;
-        pTemp += 8;
-    }
-
-    pTemp = temp;
-
-    const int nonzero_rows = s_idct_col_table[block_max_zag - 1];
-    for (i = 8; i > 0; i--) {
-        switch (nonzero_rows) {
-        case 1: Col<1>::idct(pDst_ptr, pTemp); break;
-        case 2: Col<2>::idct(pDst_ptr, pTemp); break;
-        case 3: Col<3>::idct(pDst_ptr, pTemp); break;
-        case 4: Col<4>::idct(pDst_ptr, pTemp); break;
-        case 5: Col<5>::idct(pDst_ptr, pTemp); break;
-        case 6: Col<6>::idct(pDst_ptr, pTemp); break;
-        case 7: Col<7>::idct(pDst_ptr, pTemp); break;
-        case 8: Col<8>::idct(pDst_ptr, pTemp); break;
-        }
-
-        pTemp++;
-        pDst_ptr++;
-    }
-
-    for(int i = 0; i < 64; ++i)
+   
+    if(!lossless)
     {
-        static int c = 0;
-        if(c < 64)
-            printf("%d: pDst_ptr[i] %d, src %d\n", c++, pDst_ptr[i], pSrc_ptr[i]);
+		int temp[64];
+
+		const jpgd_block_t *pSrc = pSrc_ptr;
+		int *pTemp = temp;
+
+		const uint8 *pRow_tab = &s_idct_row_table[(block_max_zag - 1) * 8];
+		int i;
+		for (i = 8; i > 0; i--, pRow_tab++) {
+		    switch (*pRow_tab) {
+		    case 0: Row<0>::idct(pTemp, pSrc); break;
+		    case 1: Row<1>::idct(pTemp, pSrc); break;
+		    case 2: Row<2>::idct(pTemp, pSrc); break;
+		    case 3: Row<3>::idct(pTemp, pSrc); break;
+		    case 4: Row<4>::idct(pTemp, pSrc); break;
+		    case 5: Row<5>::idct(pTemp, pSrc); break;
+		    case 6: Row<6>::idct(pTemp, pSrc); break;
+		    case 7: Row<7>::idct(pTemp, pSrc); break;
+		    case 8: Row<8>::idct(pTemp, pSrc); break;
+		    }
+
+		    pSrc += 8;
+		    pTemp += 8;
+		}
+
+		pTemp = temp;
+
+		const int nonzero_rows = s_idct_col_table[block_max_zag - 1];
+		for (i = 8; i > 0; i--) {
+		    switch (nonzero_rows) {
+		    case 1: Col<1>::idct(pDst_ptr, pTemp); break;
+		    case 2: Col<2>::idct(pDst_ptr, pTemp); break;
+		    case 3: Col<3>::idct(pDst_ptr, pTemp); break;
+		    case 4: Col<4>::idct(pDst_ptr, pTemp); break;
+		    case 5: Col<5>::idct(pDst_ptr, pTemp); break;
+		    case 6: Col<6>::idct(pDst_ptr, pTemp); break;
+		    case 7: Col<7>::idct(pDst_ptr, pTemp); break;
+		    case 8: Col<8>::idct(pDst_ptr, pTemp); break;
+		    }
+
+		    pTemp++;
+		    pDst_ptr++;
+		}
+		return;
     }
-#else
+
     static uint8 s_zag[64] = { 0,1,8,16,9,2,3,10,17,24,32,25,18,11,4,5,12,19,26,33,40,48,41,34,27,20,13,6,7,14,21,28,35,42,49,56,57,50,43,36,29,22,15,23,30,37,44,51,58,59,52,45,38,31,39,46,53,60,61,54,47,55,62,63 };
 
 
-#define BFSIZE 3
 
     short acc = 0;
+
+//#define BFSIZE 3
 #ifndef BFSIZE
 //identity + DPCM
     for(int i = 0; i < 64; ++i)
     {
         short s = pSrc_ptr[s_zag[i]];
         acc += s;
-        pDst_ptr[s_zag[i]] = acc;
+        pDst_ptr[i] = acc;
     }
 #else
     int buf[BFSIZE];
@@ -487,15 +485,15 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
             printf("%d(%d): code %d, ADD sample %d, acc is %d, acc will be %d\n", i, s_zag[i], n, s, acc, acc+s);
         }
         
-        acc /*+*/= s;
-        pDst_ptr[s_zag[i]] = acc;
+        pDst_ptr[i] = s; //acc+=s
         
         ++c;
     }
     
 #endif
-/*
 
+
+/*
     jpgd_block_t temp0[64];
     for(int i = 0; i < 64; ++i)
     {
@@ -506,20 +504,20 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
     int16_t temp2[64];
 
     for (int i = 0; i < 8; ++i) {
-        //FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
         //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
-        BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i]);
+        //BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i]);
     }
     for (int i = 0; i < 8; ++i) {
-        //FHT<int16_t, int16_t, 1, 3>(&temp2[i*8], &temp[i*8]);
-        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/16384.0);
+        FHT<int16_t, int16_t, 1, 4>(&temp2[i*8], &temp[i*8]);
+        //BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/16384.0);
     }
 
     for(int i = 0; i < 64; ++i)
     {
         pDst_ptr[i] = CLAMP(temp2[i]+128);
     }
-*/
+
 
     for(int i = 0; i < 64; ++i)
     {
@@ -527,7 +525,8 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag)
         if(c < 64)
             printf("%d: pDst_ptr[i] %d, src %d\n", c++, pDst_ptr[i], pSrc_ptr[i]);
     }
-#endif
+*/
+
 }
 
 void idct_4x4(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr)
@@ -1701,14 +1700,25 @@ void jpeg_decoder::fix_in_buffer()
     get_bits_no_markers(16);
     get_bits_no_markers(16);
 }
+bool quant_all_ones(const jpgd_quant_t *q)
+{
+    for(int j=0;j<64;++j)
+    {
+       if(q[j] != 1)
+         return false;
+    }
+    return true;
+}
 
 void jpeg_decoder::transform_mcu(int mcu_row)
 {
     jpgd_block_t *pSrc_ptr = m_pMCU_coefficients;
     uint8 *pDst_ptr = m_pSample_buf + mcu_row * m_blocks_per_mcu * 64;
 
+
     for (int mcu_block = 0; mcu_block < m_blocks_per_mcu; mcu_block++) {
-        idct(pSrc_ptr, pDst_ptr, m_mcu_block_max_zag[mcu_block]);
+        bool lossless = quant_all_ones(m_quant[m_comp_quant[mcu_block]]);
+        idct(pSrc_ptr, pDst_ptr, m_mcu_block_max_zag[mcu_block], lossless);
         pSrc_ptr += 64;
         pDst_ptr += 64;
     }
@@ -1723,14 +1733,14 @@ static const uint8 s_max_rc[64] = {
 
 void jpeg_decoder::transform_mcu_expand(int mcu_row)
 {
-return;
     jpgd_block_t *pSrc_ptr = m_pMCU_coefficients;
     uint8 *pDst_ptr = m_pSample_buf + mcu_row * m_expanded_blocks_per_mcu * 64;
 
     // Y IDCT
     int mcu_block;
     for (mcu_block = 0; mcu_block < m_expanded_blocks_per_component; mcu_block++) {
-        idct(pSrc_ptr, pDst_ptr, m_mcu_block_max_zag[mcu_block]);
+        bool lossless = quant_all_ones(m_quant[m_comp_quant[mcu_block]]);
+        idct(pSrc_ptr, pDst_ptr, m_mcu_block_max_zag[mcu_block], lossless);
         pSrc_ptr += 64;
         pDst_ptr += 64;
     }

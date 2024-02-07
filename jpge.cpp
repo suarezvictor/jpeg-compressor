@@ -778,24 +778,38 @@ void BINK2_DCT(TDST *out, const TSRC *in, float MUL=1.0)
 void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant)
 {
    static int c=0;
+
+   int quant_ones = 0;
     for(int i=0;i<64;++i)
     {
+      if(quant[i] == 1)
+       ++quant_ones;
+      
     //pSrc[i]=i&0xFC; //FIXME: this is for testing
-    //pSrc[i]=i; //FIXME: this is for testing
+    //pSrc[i]=127; //FIXME: this is for testing
         if(c < 64)
-            printf("%d: pSrc[i]+128 %d\n", i, (uint8)(pSrc[i]+128));
+            printf("%d: pSrc[i]+128 %d, quant %d\n", i, (uint8)(pSrc[i]+128), quant[i]);
+        ++c;
     }
-#if 1
+    
+    bool lossless = (quant_ones == 64);
+    if(!lossless)
+    {
+      dct(pSrc);
+      for (int i = 0; i < 64; i++) {
+          pDst[i] = round_to_zero(pSrc[s_zag[i]], quant[i]);
+      }
+      return;
+    }
 
-
-    //identity transform withg DPCM
-#define BFSIZE 3
-
+   
+//#define BFSIZE 3
 #ifndef BFSIZE
+    //identity transform withg DPCM
     short prev = -128; //-128 correspond to black level
     for (int i = 0; i < 64; i++) {
-        short s = pSrc[s_zag[i]];
-        pDst[i] = s - prev;
+        short s = pSrc[i];
+        pDst[i] = s - prev; //destination shpuld be read in zag order
         prev = s;
 
         ++c;
@@ -806,7 +820,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
     memset(buf, 0, sizeof(buf));
     for (int i = 0; i < 64; i++) {
         int findex = -1;
-        int src = pSrc[s_zag[i]];
+        int src = pSrc[i];
         dctq_t s = src-prev;
         //prev = src;
         
@@ -822,7 +836,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
           //  printf("look for %d, buf[%d]=%d, diff %d\n", s, j, buf[j], s - buf[j]);
         }
 
-        static int loc[BFSIZE]={0,1,-1,/*2, -2,3,-3,4, -4,5,-5,6, -6,7,-7,8*/};
+        static int loc[BFSIZE]={0,1,-1};
         if(findex>=0)
         {
           int diff = s-buf[findex];
@@ -846,6 +860,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
         ++c;
     }
 #endif
+
 /*
     // walsh-hadamard transform
     
@@ -854,29 +869,27 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
     // max 2040 per row, 16320 all rows
     int tmp[64];
     for (int i = 0; i < 8; ++i) {
-      //FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
-      BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8]);
+      FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+      //BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8]);
     }
 
     for (int i = 0; i < 8; ++i) {
-      //FHT<int, dctq_t, 8, 3>(&pDst[i], &tmp[i]);
+      FHT<int, dctq_t, 8, 2>(&pDst[i], &tmp[i]);
       //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
-      BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], 1.0/(2048));
-    }
-*/
-#else
-    dct(pSrc);
-    for (int i = 0; i < 64; i++) {
-        pDst[i] = round_to_zero(pSrc[s_zag[i]], quant[i]);
+      //BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], 1.0/(2048));
     }
 
-#endif
     for(int i=0;i<64;++i)
     {
+      //clamp values
+      if(pDst[i] > 2047) pDst[i]=2047;
+      if(pDst[i] < -2047) pDst[i]=-2047;
+      
       static int c=0;
       if(c<64)
          printf("%d: pDst[i] %d\n", c++, pDst[i]);
     }
+*/
 
 }
 
