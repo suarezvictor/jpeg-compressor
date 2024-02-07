@@ -120,20 +120,20 @@ static void image_compare(image_compare_results &results, int width, int height,
     double hist[256];
     memset(hist, 0, sizeof(hist));
 
-    FILE* ppm = fopen("out.ppm", "wt");
+    FILE* ppm = fopen("src.ppm", "wt");
     if (!ppm) {
         printf("Unable to create ppm file\n");
         return;
     }
-    FILE* ppm2 = fopen("out2.ppm", "wt");
+    FILE* ppm2 = fopen("out.ppm", "wt");
     if (!ppm) {
         printf("Unable to create ppm file\n");
         return;
     }
     
     const uint first_channel = 0, num_channels = 3;
-    fprintf(ppm, "P3\n%d %d\n%d\n", width, height, num_channels);
-    fprintf(ppm2, "P3\n%d %d\n%d\n", width, height, num_channels);
+    fprintf(ppm, "P3\n%d %d\n%d\n", width, height, 255);
+    fprintf(ppm2, "P3\n%d %d\n%d\n", width, height, 255);
     
     for (int y = 0; y < height; y++) {
         for (int x = 0; x < width; x++) {
