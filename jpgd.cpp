@@ -474,25 +474,30 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
     short pred = 0;
     int algorithm_type = pSrc_ptr[0] & 7;
     
+    uint8 buf[9];
     if(algorithm_type < 2) //FIXME: use enum
     {
       //identity + DPCM or LOCO-I
-      pDst_ptr[0] = pred = unsigned(pSrc_ptr[0])/8+128; //scale DC
-      for(int i = 1; i < 64; ++i)
+      buf[0] = pDst_ptr[0] = pred = unsigned(pSrc_ptr[0])/8+128; //scale DC
+      for(int i = 1; i < 64; ++i) //AC coefficients
       {
         short s = pSrc_ptr[s_zag[i]];
         if(algorithm_type == 1)
         {
-  	      int x = i % 8;
-  	      int y = i / 8;
-  	      uint8 pa = getpixel_8x8(x-1, y, pDst_ptr);
-  	      uint8 pb = getpixel_8x8(x, y-1, pDst_ptr);
-  	      uint8 pc = getpixel_8x8(x-1, y-1, pDst_ptr);
-  	      pred = loco1_prediction(pa, pb, pc);
+  	    int x = i % 8;
+  	    int y = i / 8;
+  	    uint8 pa = x==0 ? 0 : buf[0];//getpixel_8x8(x-1, y, pDst_ptr);
+  	    uint8 pb = y==0 ? 0 : buf[7];//getpixel_8x8(x, y-1, pDst_ptr);
+  	    uint8 pc = (x==0 || y==0) ? 0 : buf[8];//getpixel_8x8(x-1, y-1, pDst_ptr);
+  	    pred = loco1_prediction(pa, pb, pc);
         }
 
         pred += s;
         pDst_ptr[i] = pred;
+
+        for(int j=sizeof(buf)-1; j != 0; --j)
+            buf[j]=buf[j-1]; //shift register
+        buf[0] = pred;
       }
       return;
     }
