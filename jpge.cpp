@@ -102,7 +102,8 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
 {
     for (int x = 0; x < width; x++) {
         const int r = src[x].r, g = src[x].g, b = src[x].b;
-#if 0
+#if 1
+        //JPEG algorithm -- best compression
         img[0].set_px( (0.299     * r) + (0.587     * g) + (0.114     * b)-128.0, x, y);
         img[1].set_px(-(0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y);
         img[2].set_px( (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
@@ -747,8 +748,11 @@ inline static dctq_t round_to_zero(const dct_t j, const int32 quant)
     }
 }
 
+#include "transforms.h"
+
 template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
 void FHT(TDST *out, const TSRC *in) {
+#if 0
   // TODO(m): Investigate if we can to do this with 16-bit precision instead.
   int32_t a0 = in[0*STRIDE] + in[4*STRIDE];
   int32_t a1 = in[1*STRIDE] + in[5*STRIDE];
@@ -774,6 +778,20 @@ void FHT(TDST *out, const TSRC *in) {
   out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
   out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+#else
+  fht_t i[8];
+  fht_t o[8];
+  for(int j=0; j<8; ++j) i[j]=in[j*STRIDE];
+  fht8(i, o);
+  for(int j=0; j<8; ++j)
+  {
+#ifndef FHT_LIFTING_ENABLED
+   out[j*STRIDE]=o[j]>>SHIFT;
+#else
+   out[j*STRIDE]=o[j];
+#endif  
+  }
+#endif
 }
 
 template <class TSRC, class TDST, int STRIDE>
@@ -987,7 +1005,7 @@ void BINK2_IDCT(TDST *out, const TSRC *in, float MUL=1.0, bool correct_input=fal
 
 bool forward_inverse_test(const dct_t *pSrc, dctq_t *pDst)
 {
-#define AC_GAIN_BITS 1 //use more precision in AC coeeficients
+#define AC_GAIN_BITS 0 //use more precision in AC coeeficients
 
     // walsh-hadamard or other DCT transforms
     
@@ -1001,15 +1019,18 @@ bool forward_inverse_test(const dct_t *pSrc, dctq_t *pDst)
     
     int tmp[64];
     for (int i = 0; i < 8; ++i) {
-      //FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
-      BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8], 1.0, dct_correct_coefs);
+      FHT<dct_t, int, 1, 0>(&tmp[i * 8], &pSrc[i * 8]);
+      //BINK2_DCT<dct_t, int, 1>(&tmp[i * 8], &pSrc[i * 8], 1.0, dct_correct_coefs);
     }
 
     for (int i = 0; i < 8; ++i) {
-      //FHT<int, dctq_t, 8, 3-AC_GAIN_BITS>(&pDst[i], &tmp[i]);
+      FHT<int, dctq_t, 8, 3-AC_GAIN_BITS>(&pDst[i], &tmp[i]);
       //for(int j = 0; j <8; ++j) pDst[i + j*8] = tmp[i + j*8];
-      BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], (1<<AC_GAIN_BITS)/(2048.0), dct_correct_coefs);
+      //BINK2_DCT<int, dctq_t, 8>(&pDst[i], &tmp[i], (1<<AC_GAIN_BITS)/(2048.0), dct_correct_coefs);
     }
+    #ifdef FHT_LIFTING_ENABLED
+    pDst[0]*=8;//adjust DC and make room for algorithm code bitfield
+    #endif
     pDst[0]/=(1<<AC_GAIN_BITS);
     
     //zag coefficients
@@ -1041,13 +1062,13 @@ bool forward_inverse_test(const dct_t *pSrc, dctq_t *pDst)
 
     temp0[0] <<= AC_GAIN_BITS;
     for (int i = 0; i < 8; ++i) {
-        //FHT<int16_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        FHT<int16_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
         //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
-        BINK2_IDCT<int16_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, !dct_correct_coefs);
+        //BINK2_IDCT<int16_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, !dct_correct_coefs);
     }
     for (int i = 0; i < 8; ++i) {
-        //FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
-        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), !dct_correct_coefs);
+        FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
+        //BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), !dct_correct_coefs);
     }
 
     bool match = true;
@@ -1088,7 +1109,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
       return;
     }
 
-    int algorithm_type = 1; //FIXME: use enum
+    int algorithm_type = 2; //FIXME: use enum
 
     bool match=forward_inverse_test(pSrc, pDst);
     static int mcount=0;

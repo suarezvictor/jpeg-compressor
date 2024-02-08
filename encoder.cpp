@@ -415,7 +415,6 @@ int main(int arg_c, char *ppArgs[])
 
     const long comp_file_size = get_file_size(pDst_filename);
     const uint total_pixels = width * height;
-    log_printf("Compressed file size: %u, bits/pixel: %3.3f\n", comp_file_size, (comp_file_size * 8.0f) / total_pixels);
 
     // Now try loading the JPEG file using jpgd or stbi_image's JPEG decompressor.
     int uncomp_width = 0, uncomp_height = 0, uncomp_actual_comps = 0, uncomp_req_comps = 3;
@@ -426,6 +425,8 @@ int main(int arg_c, char *ppArgs[])
     } else {
         pUncomp_image_data = stbi_load(pDst_filename, &uncomp_width, &uncomp_height, &uncomp_actual_comps, uncomp_req_comps);
     }
+
+    log_printf("Compressed file size: %u/%u, bits/pixel: %3.3f\n", comp_file_size, total_pixels*uncomp_actual_comps, (comp_file_size * 8.0f) / total_pixels);
 
     if (!pUncomp_image_data) {
         log_printf("Failed loading compressed image file \"%s\"!\n", pDst_filename);

@@ -233,9 +233,11 @@ static const uint8 s_idct_row_table[] = {
     8,8,8,8,8,7,6,4, 8,8,8,8,8,7,6,5, 8,8,8,8,8,7,6,6, 8,8,8,8,8,7,7,6, 8,8,8,8,8,8,7,6, 8,8,8,8,8,8,8,6, 8,8,8,8,8,8,8,7, 8,8,8,8,8,8,8,8,
 };
 
+#include "transforms.h"
 
 template <class TSRC, class TDST, int STRIDE, int SHIFT=0>
 void FHT(TDST *out, const TSRC *in) {
+#if 0
   // TODO(m): Investigate if we can to do this with 16-bit precision instead.
   int32_t a0 = in[0*STRIDE] + in[4*STRIDE];
   int32_t a1 = in[1*STRIDE] + in[5*STRIDE];
@@ -261,6 +263,21 @@ void FHT(TDST *out, const TSRC *in) {
   out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
   out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+#else
+  fht_t i[8];
+  fht_t o[8];
+  for(int j=0; j<8; ++j) i[j]=in[j*STRIDE];
+  ifht8(i, o);
+  for(int j=0; j<8; ++j)
+  {
+#ifndef FHT_LIFTING_ENABLED
+   out[j*STRIDE]=o[j]>>SHIFT;
+#else
+   out[j*STRIDE]=o[j];
+#endif
+  }
+
+#endif
 }
 
 template <class TSRC, class TDST, int STRIDE>
@@ -516,16 +533,20 @@ void idct(const jpgd_block_t *pSrc_ptr, uint8 *pDst_ptr, int block_max_zag, bool
 
     bool idct_correct_coefs=false;
 
-#define AC_GAIN_BITS 1
-    temp0[0]<<=AC_GAIN_BITS;
+#define AC_GAIN_BITS 0
+    temp0[0]*(1<<AC_GAIN_BITS);
+
+#ifdef FHT_LIFTING_ENABLED
+    temp0[0]/=8; //correct DC value
+#endif
     for (int i = 0; i < 8; ++i) {
-        //FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
+        FHT<jpgd_block_t, int16_t, 8, 0>(&temp[i], &temp0[i]);
         //for(int j = 0; j <8; ++j) temp[i + j*8] = temp0[i + j*8];
-        BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, idct_correct_coefs);
+        //BINK2_IDCT<jpgd_block_t, int16_t, 8>(&temp[i], &temp0[i], 1.0, idct_correct_coefs);
     }
     for (int i = 0; i < 8; ++i) {
-        //FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
-        BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), idct_correct_coefs);
+        FHT<int16_t, int16_t, 1, 3+AC_GAIN_BITS>(&temp2[i*8], &temp[i*8]);
+        //BINK2_IDCT<int16_t, int16_t, 1>(&temp2[i*8], &temp[i*8], (2048)/(16384.0*(1<<AC_GAIN_BITS)), idct_correct_coefs);
     }
 
     for(int i = 0; i < 64; ++i)
@@ -2136,7 +2157,7 @@ void jpeg_decoder::H1V1Convert()
             int cb = s[64+j];
             int cr = s[128+j];
 
-#if 0
+#if 1
             d[0] = clamp(y + m_crr[cr]);
             d[1] = clamp(y + ((m_crg[cr] + m_cbg[cb]) >> 16));
             d[2] = clamp(y + m_cbb[cb]);
