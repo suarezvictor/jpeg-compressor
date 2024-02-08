@@ -51,6 +51,41 @@ template <class T> inline void clear_obj(T &obj)
     memset(&obj, 0, sizeof(obj));
 }
 
+/*
+https://stackoverflow.com/questions/10566668/lossless-rgb-to-ycbcr-transformation
+
+function forward_lift( x, y ):
+    signed int8 diff = ( y - x ) mod 0x100
+    average = ( x + ( diff >> 1 ) ) mod 0x100
+    return ( average, diff )
+
+function reverse_lift( average, signed int8 diff ):
+    x = ( average - ( diff >> 1 ) ) mod 0x100
+    y = ( x + diff ) mod 0x100
+    return ( x, y )
+
+function RGB_to_YCoCg24( red, green, blue ):
+    (temp, Co) = forward_lift( red, blue )
+    (Y, Cg)    = forward_lift( green, temp )
+    return( Y, Cg, Co)
+
+function YCoCg24_to_RGB( Y, Cg, Co ):
+    (green, temp) = reverse_lift( Y, Cg )
+    (red, blue)   = reverse_lift( temp, Co)
+    return( red, green, blue )
+
+function RGB_to_GCbCr( red, green, blue ):
+    Cb = (blue - green) mod 0x100
+    Cr = (red  - green) mod 0x100
+    return( green, Cb, Cr)
+
+function GCbCr_to_RGB( Y, Cg, Co ):
+    blue = (Cb + green) mod 0x100
+    red  = (Cr + green) mod 0x100
+    return( red, green, blue )
+*/
+
+
 template<class T> static void RGB_to_YCC(image *img, const T *src, int width, int y)
 {
     for (int x = 0; x < width; x++) {
@@ -60,9 +95,16 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
         img[1].set_px(-(0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y);
         img[2].set_px( (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
 #else
+/*
         img[0].set_px(r-128, x, y);
         img[1].set_px(g-128, x, y);
         img[2].set_px(b-128, x, y);
+*/
+
+        img[0].set_px(g-128, x, y);
+        img[1].set_px(b-g, x, y);
+        img[2].set_px(r-g, x, y);
+
 #endif
     }
 }
