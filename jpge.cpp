@@ -55,9 +55,15 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
 {
     for (int x = 0; x < width; x++) {
         const int r = src[x].r, g = src[x].g, b = src[x].b;
+#if 0
         img[0].set_px( (0.299     * r) + (0.587     * g) + (0.114     * b)-128.0, x, y);
         img[1].set_px(-(0.168736  * r) - (0.331264  * g) + (0.5       * b), x, y);
         img[2].set_px( (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
+#else
+        img[0].set_px(r-128, x, y);
+        img[1].set_px(g-128, x, y);
+        img[2].set_px(b-128, x, y);
+#endif
     }
 }
 

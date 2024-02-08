@@ -2108,9 +2108,15 @@ void jpeg_decoder::H1V1Convert()
             int cb = s[64+j];
             int cr = s[128+j];
 
+#if 0
             d[0] = clamp(y + m_crr[cr]);
             d[1] = clamp(y + ((m_crg[cr] + m_cbg[cb]) >> 16));
             d[2] = clamp(y + m_cbb[cb]);
+#else            
+            d[0]=y;  //red
+            d[1]=cb; //green
+            d[2]=cr; //blue
+#endif
             d[3] = 255;
 
             d += 4;
