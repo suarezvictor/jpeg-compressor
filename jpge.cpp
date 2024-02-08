@@ -1031,6 +1031,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
     {
         algorithm_type = 1; //fallback
 		short pred = 0; //-128 correspond to black level
+		signed char buf[9]={0,0,0,0,0,0,0,0,0};
 		for (int i = 0; i < 64; i++)
 		{
 		    short s = pSrc[i];
@@ -1038,12 +1039,17 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
 		    {
 				int x = i % 8;
 				int y = i / 8;
-				dct_t pa = getpixel_8x8(x-1, y, pSrc);
-				dct_t pb = getpixel_8x8(x, y-1, pSrc);
-				dct_t pc = getpixel_8x8(x-1, y-1, pSrc);
+				signed char pa = x==0 ? 0 : buf[0];//getpixel_8x8(x-1, y, pSrc);
+				signed char pb = y==0 ? 0 : buf[7];//getpixel_8x8(x, y-1, pSrc);
+				signed char pc = (x==0 || y==0) ? 0 : buf[8];//getpixel_8x8(x-1, y-1, pSrc);
 				pred = loco1_prediction(pa, pb, pc);
 			}
 		    pDst[i] = s - pred; //destination shpuld be read in zag order
+
+		    for(int j=sizeof(buf)-1; j != 0; --j)
+		        buf[j]=buf[j-1]; //shift register
+		    buf[0] = s;
+
 		    pred = s;
 
 		    ++c;
