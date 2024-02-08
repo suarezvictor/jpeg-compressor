@@ -2095,6 +2095,34 @@ void jpeg_decoder::decode_next_row()
     }
 }
 
+/*
+https://stackoverflow.com/questions/10566668/lossless-rgb-to-ycbcr-transformation
+
+function reverse_lift( average, signed int8 diff ):
+    x = ( average - ( diff >> 1 ) ) mod 0x100
+    y = ( x + diff ) mod 0x100
+    return ( x, y )
+
+function YCoCg24_to_RGB( Y, Cg, Co ):
+    (green, temp) = reverse_lift( Y, Cg )
+    (red, blue)   = reverse_lift( temp, Co)
+    return( red, green, blue )
+
+*/
+
+void reverse_lift(unsigned char average, signed char diff, unsigned char& x, unsigned char& y)
+{
+    x = average - (diff >> 1); //division by 2 doesn't work
+    y = x + diff;
+}
+
+void YCoCg24_to_RGB(unsigned char Y, signed char Cg, signed char& Co, unsigned char& r, unsigned char& g, unsigned char& b)
+{
+    unsigned char tmp;
+    reverse_lift(Y, Cg, g, tmp);
+    reverse_lift(tmp, Co, r, b);
+}
+
 // YCbCr H1V1 (1x1:1:1, 3 m_blocks per MCU) to RGB
 void jpeg_decoder::H1V1Convert()
 {
@@ -2116,6 +2144,15 @@ void jpeg_decoder::H1V1Convert()
             d[0]=y+cr-128;  //red
             d[1]=y; //green
             d[2]=y+cb-128; //blue
+
+/*
+            unsigned char r, g, b, Y=y;
+            signed char Co=cb-128, Cg=cr-128;
+            YCoCg24_to_RGB(Y, Cg, Co, r, g, b);
+            d[0]=r;
+            d[1]=g;
+            d[2]=b;
+*/
 #endif
             d[3] = 255;
 

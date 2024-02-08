@@ -85,6 +85,18 @@ function GCbCr_to_RGB( Y, Cg, Co ):
     return( red, green, blue )
 */
 
+void forward_lift(unsigned char x, unsigned char y, unsigned char& average, signed char& diff )
+{
+    diff = y - x;
+    average = x + (diff >>1); //division by 2 doesn't work
+}
+
+void RGB_to_YCoCg24(unsigned char r, unsigned char g, unsigned char b, unsigned char& Y, signed char& Co, signed char& Cg)
+{
+    unsigned char tmp;
+    forward_lift(r, b, tmp, Co);
+    forward_lift(g, tmp, Y, Cg);
+}
 
 template<class T> static void RGB_to_YCC(image *img, const T *src, int width, int y)
 {
@@ -96,6 +108,7 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
         img[2].set_px( (0.5       * r) - (0.418688  * g) - (0.081312  * b), x, y);
 #else
 /*
+        //no color transform -- not good compression
         img[0].set_px(r-128, x, y);
         img[1].set_px(g-128, x, y);
         img[2].set_px(b-128, x, y);
@@ -105,6 +118,14 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
         img[1].set_px(b-g, x, y);
         img[2].set_px(r-g, x, y);
 
+/*
+        signed char Co, Cg;
+        unsigned char Y;
+        RGB_to_YCoCg24(r, g, b, Y, Co, Cg);
+        img[0].set_px(Y-128, x, y);
+        img[1].set_px(Co, x, y);
+        img[2].set_px(Cg, x, y);
+*/
 #endif
     }
 }
