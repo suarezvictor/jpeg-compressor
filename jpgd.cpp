@@ -263,10 +263,40 @@ void FHT(TDST *out, const TSRC *in) {
   out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
   out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+/*
+this seems bad
+-598 -> -602
+  -1 -> 29961
+  -3 -> 21901
+  -1 ->    0
+   0 -> 23696
+  -1 -> 25021
+  -2 -> 32764
+  -1 ->    0
+
+*/
+/*
+    for(int j=0; j<8; ++j)
+    {
+      printf("%4d -> %4d\n", in[j], (int)out[j]);
+    }
+    exit(1);
+*/
 #else
   fht_t i[8];
   fht_t o[8];
-  for(int j=0; j<8; ++j) i[j]=in[j*STRIDE];
+  //for(int j=0; j<8; ++j) i[j]=in[j*STRIDE];
+
+  //reorganize like in IDCT
+  i[0]=in[0*STRIDE];
+  i[1]=in[4*STRIDE];
+  i[2]=in[2*STRIDE];
+  i[3]=in[6*STRIDE];
+  i[4]=in[1*STRIDE];
+  i[5]=in[5*STRIDE];
+  i[6]=in[3*STRIDE];
+  i[7]=in[7*STRIDE];
+  
   ifht8(i, o);
   for(int j=0; j<8; ++j)
   {
@@ -277,6 +307,25 @@ void FHT(TDST *out, const TSRC *in) {
 #endif
   }
 
+/*
+lifting:
+ -75 ->  -74
+   1 ->  -74
+  -1 ->  -75
+   1 ->  -74
+   0 ->  -74
+   0 ->  -74
+   0 ->  -75
+   0 ->  -74
+
+*/
+/*
+    for(int j=0; j<8; ++j)
+    {
+      printf("%4d -> %4d\n", i[j], o[j]);
+    }
+    exit(1);
+*/
 #endif
 }
 

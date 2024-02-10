@@ -120,6 +120,11 @@ template<class T> static void RGB_to_YCC(image *img, const T *src, int width, in
         img[2].set_px(r-g, x, y);
 
 /*
+        img[0].set_px(r-128, x, y); //no colorspace conversion
+        img[1].set_px(g-128, x, y);
+        img[2].set_px(b-128, x, y);
+*/
+/*
         signed char Co, Cg;
         unsigned char Y;
         RGB_to_YCoCg24(r, g, b, Y, Co, Cg);
@@ -778,19 +783,101 @@ void FHT(TDST *out, const TSRC *in) {
   out[5*STRIDE] = int16_t((b6 - b7) >> SHIFT);
   out[6*STRIDE] = int16_t((b4 - b5) >> SHIFT);
   out[7*STRIDE] = int16_t((b0 - b1) >> SHIFT);
+/*
+-76.000000 -> -595
+-75.000000 ->   -5
+-75.000000 ->   -5
+-74.000000 ->    1
+-72.000000 ->    3
+-74.000000 ->   -3
+-75.000000 ->   -3
+-74.000000 ->   -1
+*/
+/*
+    for(int j=0; j<8; ++j)
+    {
+      printf("%4f -> %4d\n", in[j], out[j]);
+    }
+    exit(1);
+*/
 #else
   fht_t i[8];
   fht_t o[8];
   for(int j=0; j<8; ++j) i[j]=in[j*STRIDE];
   fht8(i, o);
+  
+#if 1
+  fht_t t[8];
+  ifht8(o, t);
+  bool match = true;
   for(int j=0; j<8; ++j)
   {
-#ifndef FHT_LIFTING_ENABLED
-   out[j*STRIDE]=o[j]>>SHIFT;
-#else
-   out[j*STRIDE]=o[j];
-#endif  
+    match &= (i[j] == t[j]);
   }
+  //if(!match)
+  {
+/*
+no-lifting:
+ -76 -> -595 ->  -76
+ -75 ->   -1 ->  -75
+ -75 ->    1 ->  -75
+ -74 ->    3 ->  -74
+ -72 ->   -5 ->  -72
+ -74 ->   -3 ->  -74
+ -75 ->   -5 ->  -75
+ -74 ->   -3 ->  -74
+
+lifting: 
+ -76 ->  -75 ->  -76
+ -75 ->    0 ->  -75
+ -75 ->    0 ->  -75
+ -74 ->    2 ->  -74
+ -72 ->    1 ->  -72
+ -74 ->   -2 ->  -74
+ -75 ->   -3 ->  -75
+ -74 ->    3 ->  -74
+
+*/
+/*
+    for(int j=0; j<8; ++j)
+    {
+      printf("%4d -> %4d -> %4d\n", i[j], o[j], t[j]);
+    }
+    exit(1);
+*/  
+  }
+#endif
+
+#ifndef FHT_LIFTING_ENABLED
+  //for(int j=0; j<8; ++j)
+  //  out[j*STRIDE]=o[j]>>SHIFT;
+
+  //reorganize outputs like in DCT
+  out[0*STRIDE]=o[0]>>SHIFT;
+  out[1*STRIDE]=o[4]>>SHIFT;
+  out[2*STRIDE]=o[2]>>SHIFT;
+  out[3*STRIDE]=o[6]>>SHIFT;
+  out[4*STRIDE]=o[1]>>SHIFT;
+  out[5*STRIDE]=o[5]>>SHIFT;
+  out[6*STRIDE]=o[3]>>SHIFT;
+  out[7*STRIDE]=o[7]>>SHIFT;
+
+#else
+/*
+  for(int j=0; j<8; ++j)
+    out[j*STRIDE]=o[j];
+*/
+  //reorganize outputs like in DCT
+  out[0*STRIDE]=o[0];
+  out[1*STRIDE]=o[4];
+  out[2*STRIDE]=o[2];
+  out[3*STRIDE]=o[6];
+  out[4*STRIDE]=o[1];
+  out[5*STRIDE]=o[5];
+  out[6*STRIDE]=o[3];
+  out[7*STRIDE]=o[7];
+#endif  
+  
 #endif
 }
 
@@ -1093,7 +1180,7 @@ void jpeg_encoder::quantize_pixels(dct_t *pSrc, dctq_t *pDst, const int32 *quant
        ++quant_ones;
       
     //pSrc[i]=i&0xFC; //FIXME: this is for testing
-    //pSrc[i]=127; //FIXME: this is for testing
+    //pSrc[i]=i; //FIXME: this is for testing
         if(c < 64)
             printf("%d: pSrc[i]+128 %d, quant %d\n", i, (uint8)(pSrc[i]+128), quant[i]);
         ++c;
